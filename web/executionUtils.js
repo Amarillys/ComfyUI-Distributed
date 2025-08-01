@@ -275,6 +275,7 @@ export async function prepareApiPromptForParticipant(extension, baseApiPrompt, p
                 // Also make the worker_job_id unique to prevent potential caching issues
                 inputs.worker_job_id = `${uniqueJobId}_worker_${participantId}`;
                 inputs.worker_id = participantId;
+                inputs.master_extra = extension.config.master.extra;
             }
         }
     }
@@ -296,6 +297,7 @@ export async function prepareApiPromptForParticipant(extension, baseApiPrompt, p
             inputs.worker_id = participantId;
             // Workers also need the enabled_worker_ids to calculate tile distribution
             inputs.enabled_worker_ids = JSON.stringify(options.enabled_worker_ids || []);
+            inputs.master_extra = extension.config.master.master_extra;
         }
     }
     
@@ -390,7 +392,8 @@ async function dispatchToWorker(extension, worker, prompt, workflow, imageRefere
     extension.log('[Distributed] Prompt data: ' + JSON.stringify(promptToSend), "debug");
     
     try {
-        await fetch(`${workerUrl}/prompt`, { 
+        const promptUrl = extension.getWorkerUrl(worker, '/prompt');
+        await fetch(promptUrl, { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             mode: 'cors',

@@ -330,6 +330,12 @@ async def update_worker_endpoint(request):
                     else:
                         worker["extra_args"] = data["extra_args"]
                         
+                if "extra_req_args" in data:
+                    if data["extra_req_args"] is None:
+                        worker.pop("extra_req_args", None)
+                    else:
+                        worker["extra_req_args"] = data["extra_req_args"]
+                        
                 # Handle type field
                 if "type" in data:
                     worker["type"] = data["type"]
@@ -348,7 +354,8 @@ async def update_worker_endpoint(request):
                     "cuda_device": data["cuda_device"],
                     "enabled": data.get("enabled", False),
                     "extra_args": data.get("extra_args", ""),
-                    "type": data.get("type", "local")
+                    "type": data.get("type", "local"),
+                    "extra_req_args": data.get("extra_req_args", "")
                 }
                 if "workers" not in config:
                     config["workers"] = []
@@ -444,6 +451,8 @@ async def update_master_endpoint(request):
             config['master']['cuda_device'] = data['cuda_device']
         if "extra_args" in data:
             config['master']['extra_args'] = data['extra_args']
+        if "extra" in data:
+            config['master']['extra'] = data['extra']
             
         if save_config(config):
             return web.json_response({"status": "success", "message": "Master configuration updated."})
@@ -1812,6 +1821,7 @@ class DistributedCollectorNode:
                 "worker_batch_size": ("INT", {"default": 1, "min": 1, "max": 1024}),
                 "worker_id": ("STRING", {"default": ""}),
                 "pass_through": ("BOOLEAN", {"default": False}),
+                "master_extra": ("STRING", {"default": ""}),
             },
         }
 
@@ -1819,7 +1829,7 @@ class DistributedCollectorNode:
     FUNCTION = "run"
     CATEGORY = "image"
     
-    def run(self, images, multi_job_id="", is_worker=False, master_url="", enabled_worker_ids="[]", worker_batch_size=1, worker_id="", pass_through=False):
+    def run(self, images, multi_job_id="", is_worker=False, master_url="", enabled_worker_ids="[]", worker_batch_size=1, worker_id="", pass_through=False, master_extra=""):
         if not multi_job_id or pass_through:
             if pass_through:
                 print(f"[Distributed Collector] Pass-through mode enabled, returning images unchanged")
@@ -1827,11 +1837,11 @@ class DistributedCollectorNode:
 
         # Use async helper to run in server loop
         result = run_async_in_server_loop(
-            self.execute(images, multi_job_id, is_worker, master_url, enabled_worker_ids, worker_batch_size, worker_id)
+            self.execute(images, multi_job_id, is_worker, master_url, enabled_worker_ids, worker_batch_size, worker_id, master_extra)
         )
         return result
 
-    async def send_batch_to_master(self, image_batch, multi_job_id, master_url, worker_id):
+    async def send_batch_to_master(self, image_batch, multi_job_id, master_url, worker_id, master_extra=""):
         """Send image batch to master, chunked if large."""
         batch_size = image_batch.shape[0]
         if batch_size == 0:
@@ -1866,7 +1876,7 @@ class DistributedCollectorNode:
             try:
                 
                 session = await get_client_session()
-                url = f"{master_url}/distributed/job_complete"
+                url = f"{master_url}/distributed/job_complete{master_extra}"
                 async with session.post(url, data=data) as response:
                     response.raise_for_status()
             except Exception as e:
@@ -1875,11 +1885,11 @@ class DistributedCollectorNode:
                 raise  # Re-raise to handle at caller level
 
 
-    async def execute(self, images, multi_job_id="", is_worker=False, master_url="", enabled_worker_ids="[]", worker_batch_size=1, worker_id=""):
+    async def execute(self, images, multi_job_id="", is_worker=False, master_url="", enabled_worker_ids="[]", worker_batch_size=1, worker_id="", master_extra=""):
         if is_worker:
             # Worker mode: send images to master in a single batch
             debug_log(f"Worker - Job {multi_job_id} complete. Sending {images.shape[0]} image(s) to master")
-            await self.send_batch_to_master(images, multi_job_id, master_url, worker_id)
+            await self.send_batch_to_master(images, multi_job_id, master_url, worker_id, master_extra)
             return (images,)
         else:
             # Master mode: collect images from workers

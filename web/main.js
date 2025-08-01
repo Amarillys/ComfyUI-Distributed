@@ -355,8 +355,9 @@ class DistributedExtension {
         const defaultPort = useHttps ? 443 : 80;
         const needsPort = !isRunpodProxy && worker.port !== defaultPort;
         const portStr = needsPort ? `:${worker.port}` : '';
+        const extraParams = worker.extra_req_args;
         
-        return `${protocol}://${finalHost}${portStr}${endpoint}`;
+        return `${protocol}://${finalHost}${portStr}${endpoint}${extraParams}`;
     }
 
     async checkWorkerStatus(worker) {
@@ -910,7 +911,8 @@ class DistributedExtension {
                             port: 8189 + portOffset,
                             cuda_device: i,
                             enabled: true,
-                            extra_args: isRunpod ? "--listen" : ""
+                            extra_args: isRunpod ? "--listen" : "",
+                            extra_req_args: ""
                         };
                         newWorkers.push(worker);
                         workerNum++;
@@ -1022,6 +1024,7 @@ class DistributedExtension {
         const port = parseInt(document.getElementById(`port-${workerId}`).value);
         const cudaDevice = isRemote ? undefined : parseInt(document.getElementById(`cuda-${workerId}`).value);
         const extraArgs = isRemote ? undefined : document.getElementById(`args-${workerId}`).value;
+        const extraReqArgs = document.getElementById(`extra-req-args-${workerId}`).value;
         
         // Validate
         if (!name.trim()) {
@@ -1111,7 +1114,8 @@ class DistributedExtension {
                 host: isRemote ? host.trim() : null,
                 port: port,
                 cuda_device: isRemote ? null : cudaDevice,
-                extra_args: isRemote ? null : (extraArgs ? extraArgs.trim() : "")
+                extra_args: isRemote ? null : (extraArgs ? extraArgs.trim() : ""),
+                extra_req_args: extraReqArgs
             });
             
             // Update local config
@@ -1164,6 +1168,7 @@ class DistributedExtension {
             document.getElementById(`port-${workerId}`).value = worker.port;
             document.getElementById(`cuda-${workerId}`).value = worker.cuda_device || 0;
             document.getElementById(`args-${workerId}`).value = worker.extra_args || "";
+            document.getElementById(`extra-req-args-${workerId}`).value = worker.extra_req_args || "";
             
             // Reset remote checkbox
             const remoteCheckbox = document.getElementById(`remote-${workerId}`);
@@ -1230,7 +1235,8 @@ class DistributedExtension {
             port: nextPort,
             cuda_device: this.config.workers.length,
             enabled: true,  // Default to enabled for convenience
-            extra_args: ""
+            extra_args: "",
+            extra_req_args: ""
         };
         
         // Add to config
@@ -1243,7 +1249,8 @@ class DistributedExtension {
                 port: newWorker.port,
                 cuda_device: newWorker.cuda_device,
                 extra_args: newWorker.extra_args,
-                enabled: newWorker.enabled
+                enabled: newWorker.enabled,
+                extra_req_args: newWorker.extra_req_args
             });
             
             // Sync to state

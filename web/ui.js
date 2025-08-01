@@ -416,12 +416,14 @@ export class DistributedUI {
                 // Save with empty host - this will trigger auto-detection
                 await extension.api.updateMaster({ 
                     name: extension.config?.master?.name || "Master",
-                    host: "" 
+                    host: "",
+                    extra: ""
                 });
                 
                 // Clear the local config host so detectMasterIP() doesn't skip
                 if (extension.config?.master) {
                     extension.config.master.host = "";
+                    extension.config.master.extra = "";
                 }
                 
                 // The API call above doesn't trigger auto-detection, so we need to do it
@@ -439,6 +441,7 @@ export class DistributedUI {
                     const hostInput = document.getElementById('master-host');
                     if (hostInput) {
                         hostInput.value = extension.config?.master?.host || "";
+                        extraInput.value = extension.config?.master?.extra || "";
                     }
                 }
                 
@@ -714,6 +717,7 @@ export class DistributedUI {
                 const cudaGroup = document.getElementById(`cuda-group-${worker.id}`);
                 const argsGroup = document.getElementById(`args-group-${worker.id}`);
                 const runpodTextElem = document.getElementById(`runpod-text-${worker.id}`);
+                const extraReqArgsGroup = document.getElementById(`extra-req-args-group-${worker.id}`);
                 
                 // Check if elements exist before accessing them
                 if (!hostGroup || !portGroup || !cudaGroup || !argsGroup || !runpodTextElem || !hostInput || !portInput) {
@@ -783,6 +787,11 @@ export class DistributedUI {
         argsGroup.group.id = `args-group-${worker.id}`;
         argsGroup.group.style.display = (extension.isRemoteWorker(worker) || worker.type === "cloud") ? "none" : "flex";
         form.appendChild(argsGroup.group);
+
+        // Extra Request Arguments field
+        const extraGroup = this.createFormGroup("Extra Request Arguments", worker.extra_req_args || "", `extra-req-args-${worker.id}`, "text");
+        extraGroup.group.id = `extra-req-args-group-${worker.id}`;
+        form.appendChild(extraGroup.group);
         
         // Buttons
         const saveBtn = this.createButton("Save", 
@@ -1029,19 +1038,25 @@ export class DistributedUI {
         
         const hostResult = this.createFormGroup("Host:", extension.config?.master?.host || "", "master-host", "text", "Auto-detect if empty");
         settingsForm.appendChild(hostResult.group);
+
+        const extraResult = this.createFormGroup("Extra Request Arguments:", "", "master-extra", "text", "Params after url");
+        settingsForm.appendChild(extraResult.group);
         
         const saveBtn = this.createButton("Save", async () => {
             const nameInput = document.getElementById('master-name');
             const hostInput = document.getElementById('master-host');
+            const extraInput = document.getElementById('master-extra');
             
             if (!extension.config.master) extension.config.master = {};
             extension.config.master.name = nameInput.value.trim() || "Master";
             
             const hostValue = hostInput.value.trim();
+            const extraValue = extraInput.value.trim();
             
             await extension.api.updateMaster({
                 host: hostValue,
-                name: extension.config.master.name
+                name: extension.config.master.name,
+                extra: extraValue
             });
             
             // Reload config to refresh any updated values
@@ -1058,6 +1073,7 @@ export class DistributedUI {
             }
             
             document.getElementById('master-name-display').textContent = extension.config.master.name;
+            document.getElementById('master-extra').value = extension.config?.master?.extra || "";
             this.updateMasterDisplay(extension);
             
             // Show toast notification
@@ -1081,6 +1097,7 @@ export class DistributedUI {
         const cancelBtn = this.createButton("Cancel", () => {
             document.getElementById('master-name').value = extension.config?.master?.name || "Master";
             document.getElementById('master-host').value = extension.config?.master?.host || "";
+            document.getElementById('master-extra').value = extension.config?.master?.extra || "";
         }, "background-color: #555;");
         cancelBtn.style.cssText = BUTTON_STYLES.base + BUTTON_STYLES.cancel;
         
